@@ -8,7 +8,7 @@ const userSchema = mongoose.Schema({
     history: [String],
     role: String,
     notification: [String],
-});
+})
 const User = mongoose.model('users', userSchema);
 
 module.exports  = User
