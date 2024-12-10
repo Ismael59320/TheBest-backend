@@ -6,7 +6,7 @@ var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
-const placieRouter = require('./routes/placie');
+const placeRouter = require('./routes/place');
 require('./models/connection');
 const mongoose = require('mongoose');
 const googleAPIRouter = require('./routes/API_GOOGLE');
@@ -22,6 +22,5 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/', googleAPIRouter); 
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
-app.use('/placies', placieRouter);
-
+app.use('/places', placeRouter);
 module.exports = app;

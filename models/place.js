@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const placieSchema = mongoose.Schema({
+const placeSchema = mongoose.Schema({
     name: String,
     phone: Number,
     location: {
@@ -16,6 +16,6 @@ const placieSchema = mongoose.Schema({
         photo: String,
     },
 });
-const Placie = mongoose.model('placies', placieSchema);
+const Place = mongoose.model('places', placeSchema);
 
-module.exports  = Placie
+module.exports  = Place

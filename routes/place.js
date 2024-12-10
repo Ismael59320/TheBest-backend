@@ -1,13 +1,13 @@
 var express = require("express");
 var router = express.Router();
-const Placie = require('../models/placie');
+const Place = require('../models/place');
 
 const MongoURL = process.env.MongoURL;
 
 router.get('/', (req, res) => {
-    Placie.find()
+    Place.find()
     .then(data => {
-      res.json({placies: data})
+      res.json({places: data})
     })
   });
 
