@@ -8,6 +8,7 @@ const userSchema = mongoose.Schema({
     history: [String],
     role: String,
     notification: [String],
+    avatarUrl: String,
 })
 const User = mongoose.model('users', userSchema);
 
