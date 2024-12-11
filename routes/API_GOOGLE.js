@@ -5,6 +5,8 @@ require('dotenv').config();
 const GOOGLE_API_KEY = process.env.API_KEY;
 const LILLE_COORDINATES = { lat: 50.6292, lng: 3.0573 };
 
+//apify_api_aQEbQtJvzhWHS48o1P5oq9elYbGsmn2lFuAU
+
 // Fonction pour récupérer les restaurants à proximité
 async function findNearbyRestaurants() {
     try {
