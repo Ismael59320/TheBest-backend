@@ -13,7 +13,6 @@ router.post("/signup", (req, res) => {
     return;
   }
 console.log(req.body)
-  // Check if the user has not already been registered
   User.findOne({ email: req.body.email }).then((data) => {
     if (data === null) {
       const hash = bcrypt.hashSync(req.body.password, 10);
@@ -25,7 +24,6 @@ console.log(req.body)
         email: req.body.email,
         avatarUrl: "map-pin-yellow",
       });
-
       newUser.save().then((newDoc) => {
         res.json({ result: true, token: newDoc.token, avatarUrl : newDoc.avatarUrl });
       });
