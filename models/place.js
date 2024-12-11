@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const placeSchema = mongoose.Schema({
    name: String,
-   phoneNumber: String,
+   phone: String,
    location: {
        type: {
            type: String,
@@ -14,7 +14,9 @@ const placeSchema = mongoose.Schema({
        }
    },
    address: Object,
-   photo: String,
+
+   
+   photo_reference: String,
    place_id: String,
    rating: Number,
    review_count: Number,
