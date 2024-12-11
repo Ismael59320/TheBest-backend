@@ -23,4 +23,5 @@ app.use('/', googleAPIRouter);
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
 app.use('/places', placeRouter);
+
 module.exports = app;
