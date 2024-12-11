@@ -12,6 +12,7 @@ const mongoose = require('mongoose');
 const googleAPIRouter = require('./routes/API_GOOGLE');
 
 const cors = require('cors');
+
 app.use(cors());
 app.use(logger('dev'));
 app.use(express.json());
