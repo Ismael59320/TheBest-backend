@@ -17,7 +17,7 @@ async function findNearbyRestaurants() {
             .slice(0, 5); // Limiter à 5 établissements
     } catch (error) {
         console.error('Erreur lors de la récupération des restaurants:', error);
-        throw error;
+       
     }
 }
 
