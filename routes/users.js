@@ -3,7 +3,7 @@ var router = express.Router();
 require("../models/connection");
 
 const User = require("../models/user");
-const Favorite = require('../models/user')
+// const Favorite = require('../models/user')
 const { checkBody } = require("../modules/checkBody");
 const uid2 = require("uid2");
 const bcrypt = require("bcrypt");
@@ -56,22 +56,27 @@ router.post("/signin", (req, res) => {
   });
 });
 
-router.post('/favorites', (req, res) => {
-  const { token, _id} = req.body
-  User.findOne({token: req.body.token})
+// Ajouter un favoris dans la bdd
+// router.post('/favorites', (req, res) => {
+//   const { token, _id} = req.body
+//   User.findOne({token: req.body.token})
+//   .populate('place')
+//   .then (data => {
+//     console.log(data)
+//   })
   
-  .then((data) => {
-    console.log(data)
-    if (data) {
-      const newFavorite = new Favorite ({
-        id: O,
-      })
-      newFavorite.save();
-      res.json({result: true, newFavorite});
-    } else {
-      res.json({ result: false, error:'pas de favori ajouté'})
-    }
-  });
-});
+  // .then((data) => {
+  //   console.log(data)
+  //   if (data) {
+  //     const newFavorite = new Favorite ({
+  //       id: O,
+  //     })
+  //     newFavorite.save();
+  //     res.json({result: true, newFavorite});
+  //   } else {
+  //     res.json({ result: false, error:'pas de favori ajouté'})
+  //   }
+  // });
+// });
 
 module.exports = router;
