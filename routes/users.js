@@ -97,7 +97,7 @@ router.put('/favorites', (req, res) => {
             {$pull : {favorites: obj_id}}
           ).then((object) => {
             console.log(object)
-            res.json({result: true, message: 'Favori supprimé'})
+            res.json({result: false, message: 'Favori supprimé'})
           })
         }
       })
