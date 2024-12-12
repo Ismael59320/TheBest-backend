@@ -73,7 +73,8 @@ router.get('/findNearbyRestaurants', async (req, res) => {
                 `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photo_reference}&key=${GOOGLE_API_KEY}` :
                 'placeholder_url',
             phoneNumber: place.phone,
-            openingHours: place.openingHours
+            openingHours: place.openingHours,
+            location: place.location
         }));
 
         console.log('Formatted places:', formattedPlaces);
