@@ -57,14 +57,14 @@ router.post("/signin", (req, res) => {
 });
 
 router.post('/favorites', (req, res) => {
-  const { token, placeId } = req.body
+  const { token, _id} = req.body
   User.findOne({token: req.body.token})
   
   .then((data) => {
     console.log(data)
     if (data) {
       const newFavorite = new Favorite ({
-        id: data.id,
+        id: O,
       })
       newFavorite.save();
       res.json({result: true, newFavorite});
