@@ -1,6 +1,5 @@
 var express = require("express");
 var router = express.Router();
-require("../models/connection");
 
 const User = require("../models/user");
 // const Favorite = require('../models/user')
@@ -13,8 +12,7 @@ router.post("/signup", (req, res) => {
     res.json({ result: false, error: "Missing or empty fields" });
     return;
   }
-console.log(req.body)
-  // Check if the user has not already been registered
+  console.log(req.body);
   User.findOne({ email: req.body.email }).then((data) => {
     if (data === null) {
       const hash = bcrypt.hashSync(req.body.password, 10);
@@ -26,9 +24,12 @@ console.log(req.body)
         email: req.body.email,
         avatarUrl: "map-pin-yellow",
       });
-
       newUser.save().then((newDoc) => {
-        res.json({ result: true, token: newDoc.token, avatarUrl : newDoc.avatarUrl });
+        res.json({
+          result: true,
+          token: newDoc.token,
+          avatarUrl: newDoc.avatarUrl,
+        });
       });
     } else {
       // User already exists in database

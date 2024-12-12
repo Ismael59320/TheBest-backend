@@ -1,10 +1,5 @@
 {
   "version": 2,
-  "functions": {
-    "routes/API_GOOGLE.js": {
-      "maxDuration": 60
-    }
-  },
   "builds": [
     {
       "src": "app.js",
