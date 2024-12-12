@@ -15,8 +15,7 @@ const userSchema = mongoose.Schema({
     notification: [String],
     avatarUrl: String,
 })
-const User = mongoose.model('users', userSchema);
-const Favorite = mongoose.model('favorites', favoritesSchema)
 
-module.exports  = User,
-module.exports = Favorite
+const User = mongoose.model('users', userSchema);
+
+module.exports  = User
