@@ -1,21 +1,33 @@
 const mongoose = require('mongoose');
 
 const placeSchema = mongoose.Schema({
-    name: String,
-    phone: Number,
-    location: {
-        type: String, // remplacer string  par "Point"
-        coordinates: [Number,Number] // a tester Pour créer un périmètre de recherche automatique autour d'une localisation donnée 
-    },
-    address:{ 
-        Street : String,
-        city: String,
-    },
-    asset: {
-        video: String,
-        photo: String,
-    },
-});
-const Place = mongoose.model('places', placeSchema);
+   name: String,
+   phone: String,
+   location: {
+       type: {
+           type: String,
+           default: "Point"
+       },
+       coordinates: {
+           type: [Number],
+           required: true
+       }
+   },
+   address: Object,
 
-module.exports  = Place
+   
+   photo_reference: String,
+   place_id: String,
+   rating: Number,
+   review_count: Number,
+   categories: [String],
+   openingHours: [String],
+   lastUpdated: { type: Date },
+   isActive: { type: Boolean, default: true }
+});
+
+placeSchema.index({ location: "2dsphere" });
+placeSchema.index({ place_id: 1 });
+
+const Place = mongoose.model('places', placeSchema);
+module.exports = Place;
