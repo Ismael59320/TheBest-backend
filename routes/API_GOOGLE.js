@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const Place = require('../models/place');
-require('dotenv').config();
 
 const GOOGLE_API_KEY = process.env.API_KEY;
 const SUB_ZONES = [

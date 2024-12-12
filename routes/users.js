@@ -13,7 +13,7 @@ router.post("/signup", (req, res) => {
     res.json({ result: false, error: "Missing or empty fields" });
     return;
   }
-console.log(req.body)
+  console.log(req.body);
   User.findOne({ email: req.body.email }).then((data) => {
     if (data === null) {
       const hash = bcrypt.hashSync(req.body.password, 10);
@@ -26,7 +26,11 @@ console.log(req.body)
         avatarUrl: "map-pin-yellow",
       });
       newUser.save().then((newDoc) => {
-        res.json({ result: true, token: newDoc.token, avatarUrl : newDoc.avatarUrl });
+        res.json({
+          result: true,
+          token: newDoc.token,
+          avatarUrl: newDoc.avatarUrl,
+        });
       });
     } else {
       // User already exists in database
@@ -62,19 +66,19 @@ router.post("/signin", (req, res) => {
 //   .then (data => {
 //     console.log(data)
 //   })
-  
-  // .then((data) => {
-  //   console.log(data)
-  //   if (data) {
-  //     const newFavorite = new Favorite ({
-  //       id: O,
-  //     })
-  //     newFavorite.save();
-  //     res.json({result: true, newFavorite});
-  //   } else {
-  //     res.json({ result: false, error:'pas de favori ajouté'})
-  //   }
-  // });
+
+// .then((data) => {
+//   console.log(data)
+//   if (data) {
+//     const newFavorite = new Favorite ({
+//       id: O,
+//     })
+//     newFavorite.save();
+//     res.json({result: true, newFavorite});
+//   } else {
+//     res.json({ result: false, error:'pas de favori ajouté'})
+//   }
+// });
 // });
 
 module.exports = router;
