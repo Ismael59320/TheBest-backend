@@ -64,6 +64,7 @@ router.get('/findNearbyRestaurants', async (req, res) => {
         }
 
         const formattedPlaces = places.map(place => ({
+            _id: place._id,
             id: place.place_id,
             name: place.name,
             address: place.address?.street,

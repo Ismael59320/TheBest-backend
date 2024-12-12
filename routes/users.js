@@ -57,123 +57,52 @@ router.post("/signin", (req, res) => {
   });
 });
 
-// Ajouter un favoris dans la bdd
-router.post('/favorites', (req, res) => {
-  const {token, place_id}  = req.body
 
-  if (!token){
+
+// Ajouter un favoris dans la BDD
+router.put('/favorites', (req, res) => {
+  const { token, obj_id } = req.body
+
+  if (!token) {
     return res.json({ result: false, error: 'Token requis' })
-  } else if (!place_id){
-    return res.json({result: false, error: 'Place Id requis'})
+  } else if (!obj_id) {
+    return res.json({ result: false, error: 'Place Id requis' })
   }
 
-User.findOne({token}).then(data => {
-  console.log(data.favorites)
-  if (data.token.length === 0){
-    return res.json({ result: false, error:'Utilisateur non trouvé/connecté'})
-  }
+  User.findOne({ token }).then(data => {
 
-  if (data.favorites.length === 0){
-    data.updateOne(
-      {token},
-      {$push: {favorites: {id : place_id}}} //Push du nouveau favoris dans le tableau favorites
-    ).then(() => {
-      console.log(data)
-      // data.find().then(response => {
-      //   console.log(response)
-      // })
-    })
-    // data.favorites.push({id: place_id})
-    // data.save().then (() => {
-    //   data.find().then((res) => {
-    //     console.log(res)
-    //     res.json({ result: true, message: 'Favori ajouté'})
-    //   })
-    // })
-  } else {
-    // Vérification si le favori n'est pas dejà ajouté
-    const alreadyExists = data.favorites.some(fav => fav.id.toString() === place_id);
-    if (alreadyExists){
-      return res.json({ result: false, error: 'Favori dejà dans la liste'})
-    }
-
-    // Ajouter le favori
-    data.favorites.push({id : place_id})
-    data.save().then(() => {
-      data.find().then((res) => {
-        console.log(res)
-        res.json({ result: true, message: 'Favori ajouté'})
+    if (data.favorites.length === 0) {
+      User.updateOne(
+        { token },
+        { $push: { favorites: obj_id } } //Push du nouveau favoris dans le tableau favorites si rien dans la BDD
+      ).then(() => {
+        res.json({ result: true, message: 'Favori ajouté avec succès' })
       })
-    })
-  }
-  
-})
-  // if (!user){
-  //   return res.json({ result: false, error: 'Utilisateur non trouvé'})
-  // };
-
-  // console.log(user)
-
-  // if (user.favorites === 0){
-
-  //   console.log(user)
-  //   // user.favorites.push({id: place_id});
-  //   // user.save().then(data => {
-  //   //   req.json({result: true, message: data})
-  //   // })
-  // } else {
-  //   //Vérifie si le favori est déja ajouté dans la liste
-  //   const alreadyExists = user.favorites?.some(fav => fav.id.toString() === place_id);
-  //   if (alreadyExists){
-  //     return res.json({ result: false, error: 'Favori déja ajouté'})
-  //   }
-  
-  //   //Ajouter le favori
-  //   user.favorites.push({id: place_id});
-  //   user.save().then(data => {
-  //     req.json({result: true, message: data})
-  //   })
-  // }
-
-
-  // res.json({result: true, message:'Favori ajouté en BDD', place_id})
-
-  // const updateResult = User.updateOne(
-  //   {token},
-  //   {$push: {favorites: {id : place_id}}} //Push du nouveau favoris dans le tableau favorites
-  // );
-
-  // // Vérifie si l'utilisateur a été trouvé et mis à jour
-  // if (updateResult.matchedCount === 0){
-  //   return res.json({result: false, error: 'Aucun utilisateur ne correspond a ce token'})
-  // }
-
-  // //MAJ réussie
-  // res.json({ result: true, message: 'Favori ajouté', place_id});
-  
-  
-//   .then(() => {
-//     User.find().then(data => {
-//       console.log(data)
-//     }) 
-//   })
-// });
-  // .populate('favorites')
-  // .then (data => {
-  //   console.log(data)
-  
-  
-  // .then((data) => {
-  //   console.log(data)
-  //   if (data) {
-  //     const newFavorite = new Favorite ({
-  //       id: O,
-  //     })
-  //     newFavorite.save();
-  //     res.json({result: true, newFavorite});
-  //   } else {
-  //     res.json({ result: false, error:'pas de favori ajouté'})
-  //   }
-  });
+    } else {
+      // Vérification si le favori n'est pas dejà ajouté
+      User.find({token: token, favorites: obj_id}).then(infos => {
+        console.log(infos)
+        if (infos.length === 0){
+          User.updateOne(
+            {token},
+            { $push: {favorites: obj_id}}
+          ).then((object) => {
+            console.log(object)
+            res.json({ result: true, message: 'Favori ajouté avec succès'})
+          })
+        } else {
+          // Si favori deja dans la BDD, le supprimer
+          User.updateOne(
+            {token},
+            {$pull : {favorites: obj_id}}
+          ).then((object) => {
+            console.log(object)
+            res.json({result: true, message: 'Favori supprimé'})
+          })
+        }
+      })
+    }
+  })
+});
 
 module.exports = router;

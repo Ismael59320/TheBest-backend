@@ -1,15 +1,12 @@
 const mongoose = require('mongoose');
 
-const favoritesSchema = mongoose.Schema({
-    id: {type: mongoose.Schema.Types.ObjectId, ref: 'places'},
-})
 
 const userSchema = mongoose.Schema({
     username: String,
     email: String,
     password: String,
     token: String,
-    favorites: [favoritesSchema],
+    favorites: [{type: mongoose.Schema.Types.ObjectId, ref: 'places'}],
     history: [String],
     role: String,
     notification: [String],
