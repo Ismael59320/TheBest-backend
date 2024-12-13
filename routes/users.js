@@ -42,13 +42,14 @@ router.post("/signin", (req, res) => {
   if (!checkBody(req.body, ["username", "password"])) {
     res.json({ result: false, error: "Missing or empty fields" });
     return;
-  }
+  } 
 
   User.findOne({ username: req.body.username }).then((data) => {
     if (data && bcrypt.compareSync(req.body.password, data.password)) {
       res.json({
         result: true,
         token: data.token,
+        favorites: data.favorites,
         avatarUrl: data.avatarUrl,
       });
     } else {
@@ -57,27 +58,60 @@ router.post("/signin", (req, res) => {
   });
 });
 
-// Ajouter un favoris dans la bdd
-// router.post('/favorites', (req, res) => {
-//   const { token, _id} = req.body
-//   User.findOne({token: req.body.token})
-//   .populate('place')
-//   .then (data => {
-//     console.log(data)
-//   })
 
-// .then((data) => {
-//   console.log(data)
-//   if (data) {
-//     const newFavorite = new Favorite ({
-//       id: O,
-//     })
-//     newFavorite.save();
-//     res.json({result: true, newFavorite});
-//   } else {
-//     res.json({ result: false, error:'pas de favori ajouté'})
-//   }
-// });
-// });
+
+// Ajouter un favoris dans la BDD
+router.put('/favorites', (req, res) => {
+  const { token, obj_id } = req.body
+
+  if (!token) {
+    return res.json({ result: false, error: 'Token requis' })
+  } else if (!obj_id) {
+    return res.json({ result: false, error: 'Place Id requis' })
+  }
+
+  User.findOne({ token }).then(data => {
+
+    if (data.favorites.length === 0) {
+      User.updateOne(
+        { token },
+        { $push: { favorites: obj_id } } //Push du nouveau favoris dans le tableau favorites si rien dans la BDD
+      ).then(() => {
+        res.json({ result: true, message: 'Favori ajouté avec succès' })
+      })
+    } else {
+      // Vérification si le favori n'est pas dejà ajouté
+      User.find({token: token, favorites: obj_id}).then(infos => {
+        console.log(infos)
+        if (infos.length === 0){
+          User.updateOne(
+            {token},
+            { $push: {favorites: obj_id}}
+          ).then((object) => {
+            console.log(object)
+            res.json({ result: true, message: 'Favori ajouté avec succès'})
+          })
+        } else {
+          // Si favori deja dans la BDD, le supprimer
+          User.updateOne(
+            {token},
+            {$pull : {favorites: obj_id}}
+          ).then((object) => {
+            console.log(object)
+            res.json({result: false, message: 'Favori supprimé'})
+          })
+        }
+      })
+    }
+  })
+});
+
+router.get('/favorites', (req, res) => {
+  const {token} = req.body
+  User.findOne({token}).then(data => 
+
+    res.json({favorites: data.favorites})
+  )
+})
 
 module.exports = router;
