@@ -49,6 +49,7 @@ router.post("/signin", (req, res) => {
       res.json({
         result: true,
         token: data.token,
+        favorites: data.favorites,
         avatarUrl: data.avatarUrl,
       });
     } else {
