@@ -105,4 +105,12 @@ router.put('/favorites', (req, res) => {
   })
 });
 
+router.get('/favorites', (req, res) => {
+  const {token} = req.body
+  User.findOne({token}).then(data => 
+
+    res.json({favorites: data.favorites})
+  )
+})
+
 module.exports = router;
