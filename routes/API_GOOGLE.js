@@ -3,56 +3,155 @@ const router = express.Router();
 const Place = require('../models/place');
 
 const GOOGLE_API_KEY = process.env.API_KEY;
-const SUB_ZONES = [
-    { lat: 50.6292, lng: 3.0573 }, // Centre
-    { lat: 50.6392, lng: 3.0573 }, // Nord
-    { lat: 50.6192, lng: 3.0573 }, // Sud
-    { lat: 50.6292, lng: 3.0673 }, // Est
-    { lat: 50.6292, lng: 3.0473 }  // Ouest
-];
+const YELP_API_KEY = "JXYlcDSjvG7X1gDjaou7ELS74gnMHrFuDvqCeHJ22nZAYM9agkS14KHOk1niwQUNkLZXc-AkKzzDuSXas-xotOx1SOveJQJBbP0jZCC5aiAVYninOrfKVbNPhu5bZ3Yx";
 
-async function fetchRestaurantsFromZone(zone, pageToken = '') {
+const YELP_HEADERS = {
+    "Authorization": `Bearer ${YELP_API_KEY}`
+};
+
+// Fonction pour normaliser une adresse
+function normalizeAddress(address) {
+    if (!address) return '';
+    return address
+        .toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Supprimer les accents
+        .replace(/,/g, '') // Supprimer les virgules
+        .replace(/\s+/g, ' ') // Réduire les espaces multiples
+        .trim();
+}
+
+// Fonction pour récupérer les catégories de Yelp
+async function getRestaurantCategoriesFromYelp(name, street, city, postalCode = '59000') {
     try {
-        const baseUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${zone.lat},${zone.lng}&radius=2000&type=restaurant&key=${GOOGLE_API_KEY}`;
-        const url = pageToken ? `${baseUrl}&pagetoken=${pageToken}` : baseUrl;
+        // Normalisation des champs pour Yelp
+        const normalizedStreet = normalizeAddress(street);
+        const locationQuery = `${normalizedStreet}, ${city}, ${postalCode}`;
 
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        // URL pour la requête Yelp
+        const url = `https://api.yelp.com/v3/businesses/search?term=${encodeURIComponent(name)}&location=${encodeURIComponent(locationQuery)}&limit=1`;
+        console.log(`Sending Yelp request for ${name} at ${locationQuery}`);
 
+        const response = await fetch(url, { headers: YELP_HEADERS });
         const data = await response.json();
-        console.log('Fetched data from API:', data.results.map(place => ({
-            name: place.name,
-            photo: place.photos?.[0]?.photo_reference || 'No photo'
-        })));
 
-        return data;
+        // Logs détaillés
+        if (data.businesses && data.businesses.length > 0) {
+            const business = data.businesses[0];
+            console.log(`Match found for ${name} - Yelp Address: ${business.location.display_address.join(', ')}`);
+
+            // Extraction des catégories
+            const categories = business.categories.map(category => category.title);
+            return categories;
+        } else {
+            console.log(`No match found for ${name} at ${locationQuery}`);
+            return [];
+        }
     } catch (error) {
-        console.error('Error fetching from zone:', error);
-        throw error;
+        console.error(`Error fetching Yelp categories for ${name}:`, error);
+        return [];
     }
 }
 
-async function getRestaurantDetails(placeId) {
+// Route pour mettre à jour les restaurants à partir des zones définies et les enrichir
+router.post('/updatePlaces', async (req, res) => {
     try {
-        const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=formatted_phone_number,opening_hours&key=${GOOGLE_API_KEY}`;
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+        const SUB_ZONES = [
+            { lat: 50.6292, lng: 3.0573 }, // Centre
+            { lat: 50.6392, lng: 3.0573 }, // Nord
+            { lat: 50.6192, lng: 3.0573 }, // Sud   
+            { lat: 50.6292, lng: 3.0673 }, // Est
+            { lat: 50.6292, lng: 3.0473 }  // Ouest
+        ];
+
+        let allRestaurants = [];
+
+        for (const zone of SUB_ZONES) {
+            let pageToken = '';
+            do {
+                const baseUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${zone.lat},${zone.lng}&radius=2000&type=restaurant&key=${GOOGLE_API_KEY}`;
+                const url = pageToken ? `${baseUrl}&pagetoken=${pageToken}` : baseUrl;
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                const goodRestaurants = data.results.filter(place =>
+                    place.rating >= 4 && place.user_ratings_total >= 200
+                );
+
+                allRestaurants = [...allRestaurants, ...goodRestaurants];
+                pageToken = data.next_page_token;
+
+                if (pageToken) {
+                    await new Promise(resolve => setTimeout(resolve, 2000)); // Attendre pour éviter les limites d'API
+                }
+            } while (pageToken);
         }
 
-        const data = await response.json();
-        return {
-            phoneNumber: data.result?.formatted_phone_number || 'Not available',
-            openingHours: data.result?.opening_hours?.weekday_text || []
-        };
-    } catch (error) {
-        console.error('Error fetching details:', error);
-        return { phoneNumber: 'Not available', openingHours: [] };
-    }
-}
+        const uniqueRestaurants = Array.from(
+            new Map(allRestaurants.map(r => [r.place_id, r])).values()
+        );
 
+        let enrichedCount = 0;
+        let nullCount = 0;
+
+        for (const place of uniqueRestaurants) {
+            const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=formatted_phone_number,opening_hours&key=${GOOGLE_API_KEY}`;
+            const detailsResponse = await fetch(detailsUrl);
+            const detailsData = await detailsResponse.json();
+
+            // Récupérer les catégories Yelp
+            const categories = await getRestaurantCategoriesFromYelp(
+                place.name,
+                place.vicinity || '',
+                "Lille", // Remplacer par la ville dynamique si disponible
+                "59000" // Remplacer par un code postal dynamique si disponible
+            );
+            const type = categories.length > 0 ? categories.join(', ') : null;
+
+            // Mettre à jour ou insérer le restaurant avec enrichissement
+            await Place.findOneAndUpdate(
+                { place_id: place.place_id },
+                {
+                    name: place.name,
+                    phone: detailsData.result?.formatted_phone_number || 'Not available',
+                    location: {
+                        type: "Point",
+                        coordinates: [place.geometry.location.lng, place.geometry.location.lat]
+                    },
+                    address: {
+                        street: place.vicinity,
+                        city: "Lille"
+                    },
+                    photo_reference: place.photos?.[0]?.photo_reference || null,
+                    place_id: place.place_id,
+                    rating: place.rating,
+                    review_count: place.user_ratings_total,
+                    categories: place.types,
+                    openingHours: detailsData.result?.opening_hours?.weekday_text || [],
+                    type 
+                },
+                { upsert: true, new: true }
+            );
+
+            // Comptabiliser les mises à jour
+            if (type) enrichedCount++;
+            else nullCount++;
+        }
+
+        res.json({
+            success: true,
+            message: `Updated and enriched all restaurants.`,
+            enrichedCount,
+            nullCount,
+            total: enrichedCount + nullCount
+        });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Route pour retourner les 5 meilleurs restaurants
 router.get('/findNearbyRestaurants', async (req, res) => {
     try {
         const places = await Place.find()
@@ -68,82 +167,16 @@ router.get('/findNearbyRestaurants', async (req, res) => {
             name: place.name,
             address: place.address?.street,
             rating: place.rating,
-            photo: place.photo_reference ?
-                `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photo_reference}&key=${GOOGLE_API_KEY}` :
-                'placeholder_url',
+            photo: place.photo_reference
+                ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photo_reference}&key=${GOOGLE_API_KEY}`
+                : 'placeholder_url',
             phoneNumber: place.phone,
-            openingHours: place.openingHours
+            openingHours: place.openingHours,
+            categories: place.categories,
+            type: place.type // Inclure le champ `type` pour le filtrage
         }));
 
-        console.log('Formatted places:', formattedPlaces);
         res.json(formattedPlaces);
-    } catch (error) {
-        console.error('Error:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-router.post('/updatePlaces', async (req, res) => {
-    try {
-        let allRestaurants = [];
-
-        for (const zone of SUB_ZONES) {
-            let pageToken = '';
-            do {
-                const data = await fetchRestaurantsFromZone(zone, pageToken);
-                const goodRestaurants = data.results.filter(place =>
-                    place.rating >= 4 && place.user_ratings_total >= 500
-                );
-
-                allRestaurants = [...allRestaurants, ...goodRestaurants];
-                pageToken = data.next_page_token;
-
-                if (pageToken) {
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                }
-            } while (pageToken);
-        }
-
-        const uniqueRestaurants = Array.from(
-            new Map(allRestaurants.map(r => [r.place_id, r])).values()
-        );
-
-        for (const place of uniqueRestaurants) {
-            const details = await getRestaurantDetails(place.place_id);
-
-            console.log('Details for place:', {
-                name: place.name,
-                phone: details.phoneNumber,
-                photo_reference: place.photos?.[0]?.photo_reference || 'No photo'
-            });
-
-            const updatedPlace = await Place.findOneAndUpdate(
-                { place_id: place.place_id },
-                {
-                    name: place.name,
-                    phone: details.phoneNumber,
-                    location: {
-                        type: "Point",
-                        coordinates: [place.geometry.location.lng, place.geometry.location.lat]
-                    },
-                    address: {
-                        street: place.vicinity,
-                        city: "Lille"
-                    },
-                    photo_reference: place.photos?.[0]?.photo_reference || null,
-                    place_id: place.place_id,
-                    rating: place.rating,
-                    review_count: place.user_ratings_total,
-                    categories: place.types,
-                    openingHours: details.openingHours
-                },
-                { upsert: true, new: true }
-            );
-
-            console.log(`Updated place in DB:`, updatedPlace);
-        }
-
-        res.json({ success: true, count: uniqueRestaurants.length });
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -161,87 +194,153 @@ module.exports = router;
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // const express = require('express');
 // const router = express.Router();
 // const Place = require('../models/place');
-// require('dotenv').config();
 
 // const GOOGLE_API_KEY = process.env.API_KEY;
-// const SUB_ZONES = [
-//     { lat: 50.6292, lng: 3.0573 }, // Centre
-//     { lat: 50.6392, lng: 3.0573 }, // Nord
-//     { lat: 50.6192, lng: 3.0573 }, // Sud
-//     { lat: 50.6292, lng: 3.0673 }, // Est
-//     { lat: 50.6292, lng: 3.0473 }  // Ouest
-// ];
+// const YELP_API_KEY = "JXYlcDSjvG7X1gDjaou7ELS74gnMHrFuDvqCeHJ22nZAYM9agkS14KHOk1niwQUNkLZXc-AkKzzDuSXas-xotOx1SOveJQJBbP0jZCC5aiAVYninOrfKVbNPhu5bZ3Yx";
 
-// async function fetchRestaurantsFromZone(zone, pageToken = '') {
+// const YELP_HEADERS = {
+//     "Authorization": `Bearer ${YELP_API_KEY}`
+// };
+
+// // Fonction pour normaliser une adresse
+// function normalizeAddress(address) {
+//     if (!address) return '';
+//     return address
+//         .toLowerCase()
+//         .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Supprimer les accents
+//         .replace(/,/g, '') // Supprimer les virgules
+//         .replace(/\s+/g, ' ') // Réduire les espaces multiples
+//         .trim();
+// }
+
+// // Fonction pour récupérer les catégories de Yelp
+// async function getRestaurantCategoriesFromYelp(name, address, city, postalCode = '59000') {
 //     try {
-//         const baseUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${zone.lat},${zone.lng}&radius=2000&type=restaurant&key=${GOOGLE_API_KEY}`;
-//         const url = pageToken ? `${baseUrl}&pagetoken=${pageToken}` : baseUrl;
+//         // Construire une adresse complète pour la recherche Yelp
+//         const locationQuery = `${normalizeAddress(address)}, ${normalizeAddress(city)}, ${postalCode}`;
 
-//         const response = await fetch(url);
-//         if (!response.ok) {
-//             throw new Error(`HTTP error! status: ${response.status}`);
-//         }
+//         // Construire l'URL pour la recherche Yelp
+//         const url = `https://api.yelp.com/v3/businesses/search?term=${encodeURIComponent(name)}&location=${encodeURIComponent(locationQuery)}&limit=1`;
 
+//         const response = await fetch(url, { headers: YELP_HEADERS });
 //         const data = await response.json();
-//         console.log('API Response:', data.results[0].photos); // Voir la structure des photos
-//         console.log('Fetched data from API:', data.results.map(place => ({
-//             name: place.name,
-//             photos: place.photos ? place.photos[0].photo_reference : 'No photo'
-//         })));
 
-//         return data;
+//         if (data.businesses && data.businesses.length > 0) {
+//             const business = data.businesses[0];
+//             const categories = business.categories.map(category => category.title);
+//             return categories;
+//         } else {
+//             return [];
+//         }
 //     } catch (error) {
-//         console.error('Error fetching from zone:', error);
-//         throw error;
+//         console.error('Error fetching Yelp categories:', error);
+//         return [];
 //     }
 // }
 
-// async function getRestaurantDetails(placeId) {
+// // Route pour mettre à jour les restaurants à partir des zones définies et les enrichir
+// router.post('/updatePlaces', async (req, res) => {
 //     try {
-//         const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=formatted_phone_number,opening_hours&key=${GOOGLE_API_KEY}`;
-//         const response = await fetch(url);
-//         if (!response.ok) {
-//             throw new Error(`HTTP error! status: ${response.status}`);
+//         const SUB_ZONES = [
+//             { lat: 50.6292, lng: 3.0573 }, // Centre
+//             { lat: 50.6392, lng: 3.0573 }, // Nord
+//             { lat: 50.6192, lng: 3.0573 }, // Sud   
+//             { lat: 50.6292, lng: 3.0673 }, // Est
+//             { lat: 50.6292, lng: 3.0473 }  // Ouest
+//         ];
+
+//         let allRestaurants = [];
+
+//         for (const zone of SUB_ZONES) {
+//             let pageToken = '';
+//             do {
+//                 const baseUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${zone.lat},${zone.lng}&radius=2000&type=restaurant&key=${GOOGLE_API_KEY}`;
+//                 const url = pageToken ? `${baseUrl}&pagetoken=${pageToken}` : baseUrl;
+
+//                 const response = await fetch(url);
+//                 const data = await response.json();
+
+//                 const goodRestaurants = data.results.filter(place =>
+//                     place.rating >= 4 && place.user_ratings_total >= 200
+//                 );
+
+//                 allRestaurants = [...allRestaurants, ...goodRestaurants];
+//                 pageToken = data.next_page_token;
+
+//                 if (pageToken) {
+//                     await new Promise(resolve => setTimeout(resolve, 2000)); // Attendre pour éviter les limites d'API
+//                 }
+//             } while (pageToken);
 //         }
 
-//         const data = await response.json();
-//         return {
-//             phoneNumber: data.result?.formatted_phone_number || 'Not available',
-//             openingHours: data.result?.opening_hours?.weekday_text || []
-//         };
-//     } catch (error) {
-//         console.error('Error fetching details:', error);
-//         return { phoneNumber: 'Not available', openingHours: [] };
-//     }
-// }
+//         const uniqueRestaurants = Array.from(
+//             new Map(allRestaurants.map(r => [r.place_id, r])).values()
+//         );
 
+//         let enrichedCount = 0;
+//         let nullCount = 0;
+
+//         for (const place of uniqueRestaurants) {
+//             const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=formatted_phone_number,opening_hours&key=${GOOGLE_API_KEY}`;
+//             const detailsResponse = await fetch(detailsUrl);
+//             const detailsData = await detailsResponse.json();
+
+//             // Récupérer les catégories Yelp
+//             const categories = await getRestaurantCategoriesFromYelp(
+//                 place.name,
+//                 place.vicinity || '',
+//                 "Lille", // Remplacer par la ville dynamique si disponible
+//                 "59000" // Remplacer par un code postal dynamique si disponible
+//             );
+//             const type = categories.length > 0 ? categories.join(', ') : null;
+
+//             // Mettre à jour ou insérer le restaurant avec enrichissement
+//             await Place.findOneAndUpdate(
+//                 { place_id: place.place_id },
+//                 {
+//                     name: place.name,
+//                     phone: detailsData.result?.formatted_phone_number || 'Not available',
+//                     location: {
+//                         type: "Point",
+//                         coordinates: [place.geometry.location.lng, place.geometry.location.lat]
+//                     },
+//                     address: {
+//                         street: place.vicinity,
+//                         city: "Lille"
+//                     },
+//                     photo_reference: place.photos?.[0]?.photo_reference || null,
+//                     place_id: place.place_id,
+//                     rating: place.rating,
+//                     review_count: place.user_ratings_total,
+//                     categories: place.types,
+//                     openingHours: detailsData.result?.opening_hours?.weekday_text || [],
+//                     type // Champ enrichi avec Yelp ou `null`
+//                 },
+//                 { upsert: true, new: true }
+//             );
+
+//             // Comptabiliser les mises à jour
+//             if (type) enrichedCount++;
+//             else nullCount++;
+//         }
+
+//         res.json({
+//             success: true,
+//             message: `Updated and enriched all restaurants.`,
+//             enrichedCount,
+//             nullCount,
+//             total: enrichedCount + nullCount
+//         });
+//     } catch (error) {
+//         console.error('Error:', error);
+//         res.status(500).json({ error: 'Internal server error' });
+//     }
+// });
+
+// // Route pour retourner les 5 meilleurs restaurants
 // router.get('/findNearbyRestaurants', async (req, res) => {
 //     try {
 //         const places = await Place.find()
@@ -252,108 +351,25 @@ module.exports = router;
 //             return res.status(404).json({ message: "No restaurants found" });
 //         }
 
-//         const formattedPlaces = places.map(place => {
-//             console.log('Raw place:', place);
-//             console.log('Asset photo:', place.asset?.photo);
+//         const formattedPlaces = places.map(place => ({
+//             id: place.place_id,
+//             name: place.name,
+//             address: place.address?.street,
+//             rating: place.rating,
+//             photo: place.photo_reference
+//                 ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photo_reference}&key=${GOOGLE_API_KEY}`
+//                 : 'placeholder_url',
+//             phoneNumber: place.phone,
+//             openingHours: place.openingHours,
+//             categories: place.categories,
+//             type: place.type // Inclure le champ `type` pour le filtrage
+//         }));
 
-//             return {
-
-
-//                 id: place.place_id,
-//                 name: place.name,
-//                 address: place.address.street,
-//                 rating: place.rating,
-//                 photo: place.photo_reference ?
-//                     `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photo_reference}&key=${GOOGLE_API_KEY}` :
-//                     'placeholder_url',
-//                 phoneNumber: place.phone,
-//                 openingHours: place.openingHours
-//             }
-//         });
-//         console.log('Formatted places:', formattedPlaces);
 //         res.json(formattedPlaces);
 //     } catch (error) {
 //         console.error('Error:', error);
 //         res.status(500).json({ error: 'Internal server error' });
 //     }
 // });
-
-// router.post('/updatePlaces', async (req, res) => {
-
-//     try {
-//         let allRestaurants = [];
-
-//         for (const zone of SUB_ZONES) {
-//             let pageToken = '';
-//             do {
-//                 const data = await fetchRestaurantsFromZone(zone, pageToken);
-//                 console.log('Fetched data from API:', data.results);
-
-//                 const goodRestaurants = data.results.filter(place =>
-//                     place.rating >= 4 && place.user_ratings_total >= 500
-
-
-//                 );
-
-//                 allRestaurants = [...allRestaurants, ...goodRestaurants];
-//                 pageToken = data.next_page_token;
-
-//                 if (pageToken) {
-//                     await new Promise(resolve => setTimeout(resolve, 2000));
-//                 }
-//             } while (pageToken);
-//         }
-
-//         const uniqueRestaurants = Array.from(
-//             new Map(allRestaurants.map(r => [r.place_id, r])).values()
-//         );
-
-//         for (const place of uniqueRestaurants) {
-//             const details = await getRestaurantDetails(place.place_id);
-
-
-//             console.log('Photos data:', place.photos);
-//             if (place.photos && place.photos.length > 0) {
-//                 console.log('Photo reference:', place.photos[0].photo_reference);
-//             } else {
-//                 console.log(`No photos found for place: ${place.name}`);
-//             }
-//             await Place.findOneAndUpdate(
-//                 { place_id: place.place_id },
-//                 {
-//                     name: place.name,
-//                     phone: details.phoneNumber,
-//                     location: {
-//                         type: "Point",
-//                         coordinates: [place.geometry.location.lng, place.geometry.location.lat]
-//                     },
-//                     address: {
-//                         street: place.vicinity,
-//                         city: "Lille"
-//                     },
-                    
-//                         photo_reference: place.photos?.[0]?.photo_reference || null,
-                 
-//                     place_id: place.place_id,
-//                     rating: place.rating,
-//                     review_count: place.user_ratings_total,
-//                     categories: place.types,
-//                     openingHours: details.openingHours
-//                 },
-//                 { upsert: true }
-//             );
-//             console.log("Data sent to DB for place_id:", place.place_id, {
-//                 name: place.name,
-//                 phone: details.phoneNumber,
-//                 photo_reference: place.photos?.[0]?.photo_reference,
-//             });
-
-//         }
-//             res.json({ success: true, count: uniqueRestaurants.length });
-//         } catch (error) {
-//             console.error('Error:', error);
-//             res.status(500).json({ error: 'Internal server error' });
-//         }
-//     });
 
 // module.exports = router;

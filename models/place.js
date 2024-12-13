@@ -1,29 +1,36 @@
 const mongoose = require('mongoose');
 
 const placeSchema = mongoose.Schema({
-   name: String,
-   phone: String,
-   location: {
-       type: {
-           type: String,
-           default: "Point"
-       },
-       coordinates: {
-           type: [Number],
-           required: true
-       }
-   },
-   address: Object,
 
-   
-   photo_reference: String,
-   place_id: String,
-   rating: Number,
-   review_count: Number,
-   categories: [String],
-   openingHours: [String],
-   lastUpdated: { type: Date },
-   isActive: { type: Boolean, default: true }
+
+
+
+
+    instagramUrl: String,
+     name: String,
+    phone: String,
+    location: {
+        type: {
+            type: String,
+            default: "Point"
+        },
+        coordinates: {
+            type: [Number],
+            required: true
+        }
+    },
+    address: Object,
+
+
+    photo_reference: String,
+    place_id: String,
+    rating: Number,
+    review_count: Number,
+    categories: [String],
+    type : String,
+    openingHours: [String],
+    lastUpdated: { type: Date },
+    isActive: { type: Boolean, default: true }
 });
 
 placeSchema.index({ location: "2dsphere" });
