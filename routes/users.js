@@ -122,4 +122,26 @@ router.put('/favorites', (req, res) => {
   res.json({result: true, message: 'Favori ajouté avec succès'})
 })
 
+
+// roiute pour supprimer le compte
+router.delete("/delete", (req, res) => {
+  console.log("Requête reçue :", req.body);
+  const { Token } = req.body; 
+  if (!Token) {
+    return res.status(400).json({ result: false, error: "Token manquant" });
+  }
+
+  User.deleteOne({ Token: Token })
+    .then(deleteDoc => {
+      // Vérifier si l'utilisateur a bien été supprimé
+      if (deleteDoc.deletedCount > 0) {
+        // L'utilisateur a été supprimé, retourner une réponse
+        res.json({ result: true, message: "Utilisateur supprimé avec succès" });
+      } else {
+        res.status(404).json({ result: false, error: "Utilisateur non trouvé" });
+      }
+    })
+});
+
+
 module.exports = router;
