@@ -81,7 +81,7 @@ router.put('/favorites', (req, res) => {
       })
     } else {
       // Vérification si le favori n'est pas dejà ajouté
-      User.find({token: token, favorites: favorites.obj_id}).then(infos => {
+      User.find({token: token, favorites: obj_id}).then(infos => {
         console.log(infos)
         if (infos.length === 0){
           User.updateOne(
