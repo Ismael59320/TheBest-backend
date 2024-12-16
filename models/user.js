@@ -6,7 +6,7 @@ const userSchema = mongoose.Schema({
     email: String,
     password: String,
     token: String,
-    favorites: [{type: mongoose.Schema.Types.ObjectId, ref: 'places'}],
+    favorites: [String],
     history: [String],
     role: String,
     notification: [String],

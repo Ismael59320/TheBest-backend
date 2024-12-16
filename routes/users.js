@@ -81,7 +81,7 @@ router.put('/favorites', (req, res) => {
       })
     } else {
       // Vérification si le favori n'est pas dejà ajouté
-      User.find({token: token, favorites: obj_id}).then(infos => {
+      User.find({token: token, favorites: favorites.obj_id}).then(infos => {
         console.log(infos)
         if (infos.length === 0){
           User.updateOne(
@@ -101,7 +101,7 @@ router.put('/favorites', (req, res) => {
             res.json({result: false, message: 'Favori supprimé'})
           })
         }
-      })
+      }).catch(e => res.json({error: String(e)}))
     }
   })
 });
@@ -112,6 +112,14 @@ router.get('/favorites', (req, res) => {
 
     res.json({favorites: data.favorites})
   )
+})
+
+router.put('/favorites', (req, res) => {
+  const infos = {
+    token: '4nr5k20YHjYiWqqq_62WaTy827s_Byvh',
+    obj_id: '6759c36641a7d64d06dac3ab'
+  }
+  res.json({result: true, message: 'Favori ajouté avec succès'})
 })
 
 module.exports = router;
