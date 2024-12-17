@@ -137,21 +137,6 @@ router.put("/favorites", (req, res) => {
 //       }
 //     })
 // });
-// router.delete("/", (req, res) => {
-//   User.deleteOne({
-//     const token = req.body.token;
-//     User.deleteOne({ token: token });
-//   }).then(deletedDoc => {
-//     if (deletedDoc.deletedCount > 0) {
-//       // document successfully deleted
-//        User.find().then(data => {
-//         res.json({ result: true, weather: data });
-//       });
-//     } else {
-//       res.json({ result: false, error: "user supprimer" });
-//     }
-//   });
-// });
 
 router.get("/all", (req, res) => {
   User.find()  // Trouver tous les utilisateurs dans la base de données
