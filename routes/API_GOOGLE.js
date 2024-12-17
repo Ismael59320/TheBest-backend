@@ -9,20 +9,44 @@ const YELP_HEADERS = {
     "Authorization": `Bearer ${YELP_API_KEY}`
 };
 
+// NOUVEAU: Fonction pour récupérer les 20 derniers avis en français
+async function getAllReviews(placeId) {
+    let allReviews = [];
+    let nextPageToken = '';
+    
+    for (let i = 0; i < 4 && (i === 0 || nextPageToken); i++) {
+        const pageUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=reviews&reviews_sort=newest&language=fr${nextPageToken ? `&pagetoken=${nextPageToken}` : ''}&key=${GOOGLE_API_KEY}`;
+        
+        const response = await fetch(pageUrl);
+        const data = await response.json();
+        
+        if (data.result?.reviews) {
+            allReviews = [...allReviews, ...data.result.reviews];
+        }
+        
+        nextPageToken = data.next_page_token;
+        if (nextPageToken) {
+            // Délai requis par Google entre les requêtes
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+    }
+    
+    return allReviews.slice(0, 20);  // On s'assure d'avoir max 20 avis
+}
+
 // Fonctions utilitaires
 function normalizeAddress(address) {
     if (!address) return '';
     return address
         .toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Supprimer les accents
-        .replace(/,/g, '') // Supprimer les virgules
-        .replace(/\s+/g, ' ') // Réduire les espaces multiples
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/,/g, '')
+        .replace(/\s+/g, ' ')
         .trim();
 }
 
 async function getRestaurantCategoriesFromYelp(name, street, city, postalCode = '59000', phone) {
     try {
-        // 1. Essai avec le téléphone d'abord
         if (phone && phone !== 'Non disponible') {
             const phoneResponse = await fetch(
                 `https://api.yelp.com/v3/businesses/search/phone?phone=+${phone}`,
@@ -37,7 +61,6 @@ async function getRestaurantCategoriesFromYelp(name, street, city, postalCode = 
             }
         }
 
-        // 2. Si pas de résultat par téléphone, essai par nom et adresse
         const normalizedStreet = normalizeAddress(street);
         const locationQuery = `${normalizedStreet}, ${city}, ${postalCode}`;
         const url = `https://api.yelp.com/v3/businesses/search?term=${encodeURIComponent(name)}&location=${encodeURIComponent(locationQuery)}&limit=1`;
@@ -52,7 +75,6 @@ async function getRestaurantCategoriesFromYelp(name, street, city, postalCode = 
     }
 }
 
-// Zones et paramètres
 const BASE_LAT = 50.6292;
 const BASE_LNG = 3.0573;
 const DELTA = 0.01;
@@ -67,7 +89,6 @@ for (let i = -1; i <= 1; i++) {
 }
 const RADII = [1000, 2000];
 
-// 1. Route pour récupérer et stocker les restaurants depuis Google uniquement
 router.post('/updatePlaces', async (req, res) => {
     try {
         let allRestaurants = [];
@@ -87,25 +108,33 @@ router.post('/updatePlaces', async (req, res) => {
                         break;
                     }
 
-                    // Filtre sur rating et reviews
                     const goodRestaurants = (data.results || []).filter(place =>
                         place.rating >= 4 && place.user_ratings_total >= 200
                     );
 
-                    // Définir les catégories indésirables en dehors du filtre
                     const unwantedCategories = ["movie_theater", "casino", "lodging"];
 
-                    // Filtrer les restaurants pour retirer ceux avec des catégories indésirables
                     const filteredRestaurants = goodRestaurants.filter(place => {
                         const placeCategories = place.types || [];
                         return !unwantedCategories.some(cat => placeCategories.includes(cat));
                     });
 
-                    // filteredRestaurants pour l’enregistrement en base :
                     for (const place of filteredRestaurants) {
                         const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=formatted_phone_number,opening_hours&key=${GOOGLE_API_KEY}`;
                         const detailsResponse = await fetch(detailsUrl);
                         const detailsData = await detailsResponse.json();
+
+                        // NOUVEAU: Utilisation de la fonction getAllReviews pour récupérer les 20 derniers avis en français
+                        const reviews = await getAllReviews(place.place_id);
+
+                        // NOUVEAU: Formatage des avis
+                        const formattedReviews = reviews.map(review => ({
+                            author_name: review.author_name,
+                            rating: review.rating,
+                            text: review.text,
+                            time: new Date(review.time * 1000),
+                            profile_photo_url: review.profile_photo_url
+                        }));
 
                         await Place.findOneAndUpdate(
                             { place_id: place.place_id },
@@ -123,14 +152,16 @@ router.post('/updatePlaces', async (req, res) => {
                                 photo_reference: place.photos?.[0]?.photo_reference || null,
                                 place_id: place.place_id,
                                 rating: place.rating,
+                                review: place.text,
                                 review_count: place.user_ratings_total,
                                 categories: place.types,
                                 openingHours: detailsData.result?.opening_hours?.weekday_text || [],
+                                // NOUVEAU: Sauvegarde des 20 avis formatés
+                                reviews: formattedReviews
                             },
                             { upsert: true, new: true }
                         );
                     }
-
 
                     allRestaurants = [...allRestaurants, ...filteredRestaurants];
                     pageToken = data.next_page_token;
@@ -145,7 +176,8 @@ router.post('/updatePlaces', async (req, res) => {
 
         res.json({
             success: true,
-            message: `Fetched and stored ${uniqueCount} unique restaurants from Google only.`
+            // MODIFIÉ: Message mis à jour pour inclure l'info sur les avis
+            message: `Fetched and stored ${uniqueCount} unique restaurants with their 20 most recent reviews in French.`
         });
     } catch (error) {
         console.error('Error:', error);
@@ -153,7 +185,6 @@ router.post('/updatePlaces', async (req, res) => {
     }
 });
 
-// 2. Route pour enrichir les restaurants existants en base avec Yelp
 router.post('/enrichWithYelp', async (req, res) => {
     try {
         const places = await Place.find();
@@ -161,7 +192,6 @@ router.post('/enrichWithYelp', async (req, res) => {
         let nullCount = 0;
 
         for (const place of places) {
-            // Récupérer les catégories Yelp
             const categories = await getRestaurantCategoriesFromYelp(
                 place.name,
                 place.address?.street || '',
@@ -177,13 +207,11 @@ router.post('/enrichWithYelp', async (req, res) => {
                     { place_id: place.place_id },
                     { type },
                     { new: true }
-
                 );
                 enrichedCount++;
             } else {
                 nullCount++;
             }
-
         }
 
         res.json({
@@ -199,7 +227,6 @@ router.post('/enrichWithYelp', async (req, res) => {
     }
 });
 
-// Route pour retourner les 5 meilleurs restaurants
 router.get('/findNearbyRestaurants', async (req, res) => {
     try {
         const places = await Place.find()
@@ -222,7 +249,18 @@ router.get('/findNearbyRestaurants', async (req, res) => {
             location: place.location,
             openingHours: place.openingHours,
             categories: place.categories,
-            type: place.type
+            type: place.type,
+            // Ici, on revoie les 5 avis les plus recent au front
+            reviews: (place.reviews || [])
+                .sort((a, b) => b.time - a.time)  // Tri par date la plus récente
+                .slice(0, 5)                      // Ne prend que les 5 premiers
+                .map(review => ({
+                    author: review.author_name,
+                    rating: review.rating,
+                    text: review.text,
+                    date: review.time,
+                    profilePhoto: review.profile_photo_url
+                }))
         }));
 
         res.json(formattedPlaces);
@@ -232,8 +270,6 @@ router.get('/findNearbyRestaurants', async (req, res) => {
     }
 });
 
-
-// Nouvelle route spécifique pour le filtrage par catégorie
 router.get('/findRestaurantsByCategory', async (req, res) => {
     try {
         const { category } = req.query;
@@ -242,12 +278,11 @@ router.get('/findRestaurantsByCategory', async (req, res) => {
             return res.status(400).json({ message: "Category needed" });
         }
 
-        // Définition des mots-clés pour chaque catégorie
         const categoryMapping = {
-            'Asiatique': ['asian', 'japanese', 'chinese', 'thai', 'vietnamese', 'sushi', 'pan asian'],
-            'Italien': ['italian', 'pizza', 'pasta'],
-            'Fast food': ['fast food', 'burger', 'sandwich', 'quick', 'Kebab'],
-            'Gastronomique': ['gastronomic','Gastronomique', 'french', 'fine dining', 'gourmet', "French"]
+            'Asiatique': ['Asian', "Asiatique", 'Japanese', 'chinese', 'thai', 'Vietnamese', 'sushi', 'pan asian'],
+            'Italien': ['Italian', 'Pizza', 'pasta'],
+            'Fast food': ['fast food', 'Burgers', 'Sandwich', 'quick', 'Kebab'],
+            'Gastronomique': ['gastronomic','Gastronomique', 'French', 'fine dining', 'gourmet', "French"]
         };
 
         const keywords = categoryMapping[category];
@@ -255,7 +290,6 @@ router.get('/findRestaurantsByCategory', async (req, res) => {
             return res.status(400).json({ message: "Invalid category" });
         }
 
-        // Création de la requête avec le filtre sur le type
         const places = await Place.find({
             type: { $regex: keywords.join('|')}
         })
@@ -268,7 +302,6 @@ router.get('/findRestaurantsByCategory', async (req, res) => {
             });
         }
 
-        // Formatage des résultats comme dans la route originale
         const formattedPlaces = places.map(place => ({
             id: place.place_id,
             name: place.name,
@@ -281,11 +314,21 @@ router.get('/findRestaurantsByCategory', async (req, res) => {
             location: place.location,
             openingHours: place.openingHours,
             categories: place.categories,
-            type: place.type
+            type: place.type,
+            //Même logique que findNearbyRestaurants pour les avis
+            reviews: (place.reviews || [])
+                .sort((a, b) => b.time - a.time)  // Tri par date la plus récente
+                .slice(0, 5)                      // Ne prend que les 5 premiers
+                .map(review => ({
+                    author: review.author_name,
+                    rating: review.rating,
+                    text: review.text,
+                    date: review.time,
+                    profilePhoto: review.profile_photo_url
+                }))
         }));
 
         res.json(formattedPlaces);
-
     } catch (error) {
         console.error('Error in findRestaurantsByCategory:', error);
         res.status(500).json({ error: 'Internal server error' });
