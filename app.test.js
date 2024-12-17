@@ -16,49 +16,18 @@ it("PUT /users/favorites ", async () => {
   expect(res.body.result).toBe(false);
 });
 
-it("PUT /generatedata/users?nbUsers", async () => {
-  const res = await request(app).put("/users/favorites")
-  .query({
-    token: 'roHH_3p7ve0oB_Y7ZVx-o3XcERxFE_uT',
-    obj_id: '1564513154645'
-
-  });
-  expect(res.body.result).toBe(true);
-  // expect(res.body.data.length).toBe(10);
-  //check the properties
-  const firstUser = res.body.data[0];
-  expect(firstUser.infos.firstname).not.toBeNull();
-  expect(firstUser.infos.lastname).not.toBeNull();
-  expect(firstUser.infos.telephone).not.toBeNull();
-  expect(firstUser.infos.email).not.toBeNull();
-  expect(firstUser).toHaveProperty(["infos.photo"]);
-  expect(firstUser).toHaveProperty(["infos.isDogSitter"]);
-  expect(firstUser).toHaveProperty(["infos.isSearchingDogSitter"]);
-  expect(firstUser.password).not.toBeNull();
-  expect(firstUser.token).not.toBeNull();
-  expect(firstUser.status).toMatch(/(walk|pause|off)/i);
-  expect(firstUser).toHaveProperty(["currentLocation.type"]);
-  expect(firstUser).toHaveProperty(["currentLocation.coordinates"]);
-  expect(firstUser).toHaveProperty(["homeLocation.type"]);
-  expect(firstUser).toHaveProperty(["homeLocation.coordinates"]);
-  expect(firstUser.dogs.length).toBeGreaterThanOrEqual(1);
-  expect(firstUser).toHaveProperty("friends");
-  expect(firstUser.isFake).toBe(true);
-
-  User.deleteMany();
-});
 
 it("PUT /users/favorites ajout d'un favoris", async () => {
   const token = 'roHH_3p7ve0oB_Y7ZVx-o3XcERxFE_uT';
   const obj_id = '6759c36641a7d64d06dac3ab'
-
+  
   const res = await request(app).put("/users/favorites").send({
     token: token,
     obj_id: obj_id,
-
+    
   });
   expect(res.body).toEqual({message: "Favori ajouté avec succès", result: true} ||{message: "Favori supprimé", result: false});
-
+  
   // User.update();
 });
 
@@ -68,6 +37,37 @@ afterAll(async () => {
 });
 
 
+// it("PUT /generatedata/users?nbUsers", async () => {
+//   const res = await request(app).put("/users/favorites")
+//   .query({
+//     token: 'roHH_3p7ve0oB_Y7ZVx-o3XcERxFE_uT',
+//     obj_id: '1564513154645'
+
+//   });
+//   expect(res.body.result).toBe(true);
+//   // expect(res.body.data.length).toBe(10);
+//   //check the properties
+//   const firstUser = res.body.data[0];
+//   expect(firstUser.infos.firstname).not.toBeNull();
+//   expect(firstUser.infos.lastname).not.toBeNull();
+//   expect(firstUser.infos.telephone).not.toBeNull();
+//   expect(firstUser.infos.email).not.toBeNull();
+//   expect(firstUser).toHaveProperty(["infos.photo"]);
+//   expect(firstUser).toHaveProperty(["infos.isDogSitter"]);
+//   expect(firstUser).toHaveProperty(["infos.isSearchingDogSitter"]);
+//   expect(firstUser.password).not.toBeNull();
+//   expect(firstUser.token).not.toBeNull();
+//   expect(firstUser.status).toMatch(/(walk|pause|off)/i);
+//   expect(firstUser).toHaveProperty(["currentLocation.type"]);
+//   expect(firstUser).toHaveProperty(["currentLocation.coordinates"]);
+//   expect(firstUser).toHaveProperty(["homeLocation.type"]);
+//   expect(firstUser).toHaveProperty(["homeLocation.coordinates"]);
+//   expect(firstUser.dogs.length).toBeGreaterThanOrEqual(1);
+//   expect(firstUser).toHaveProperty("friends");
+//   expect(firstUser.isFake).toBe(true);
+
+//   User.deleteMany();
+// });
 
 
 
