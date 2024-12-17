@@ -4,7 +4,7 @@ const Place = require('../models/place');
 const fetch = require('node-fetch');
 
 const GOOGLE_API_KEY = process.env.API_KEY;
-const YELP_API_KEY = "VOTRE_CLE_YELP";
+const YELP_API_KEY = process.env.YELP_API_KEY;
 const YELP_HEADERS = {
     "Authorization": `Bearer ${YELP_API_KEY}`
 };
@@ -20,21 +20,32 @@ function normalizeAddress(address) {
         .trim();
 }
 
-async function getRestaurantCategoriesFromYelp(name, street, city, postalCode = '59000') {
+async function getRestaurantCategoriesFromYelp(name, street, city, postalCode = '59000', phone) {
     try {
+        // 1. Essai avec le téléphone d'abord
+        if (phone && phone !== 'Non disponible') {
+            const phoneResponse = await fetch(
+                `https://api.yelp.com/v3/businesses/search/phone?phone=+${phone}`,
+                { headers: YELP_HEADERS }
+            );
+
+            const phoneData = await phoneResponse.json();
+            console.log(phoneData)
+            const business = phoneData.businesses?.find(b => b.display_phone === phone);
+            if (business?.categories) {
+                return business.categories.map(category => category.title);
+            }
+        }
+
+        // 2. Si pas de résultat par téléphone, essai par nom et adresse
         const normalizedStreet = normalizeAddress(street);
         const locationQuery = `${normalizedStreet}, ${city}, ${postalCode}`;
         const url = `https://api.yelp.com/v3/businesses/search?term=${encodeURIComponent(name)}&location=${encodeURIComponent(locationQuery)}&limit=1`;
+
         const response = await fetch(url, { headers: YELP_HEADERS });
         const data = await response.json();
+        return data.businesses?.[0]?.categories?.map(category => category.title) || [];
 
-        if (data.businesses && data.businesses.length > 0) {
-            const business = data.businesses[0];
-            const categories = business.categories.map(category => category.title);
-            return categories;
-        } else {
-            return [];
-        }
     } catch (error) {
         console.error(`Error fetching Yelp categories for ${name}:`, error);
         return [];
@@ -76,49 +87,49 @@ router.post('/updatePlaces', async (req, res) => {
                         break;
                     }
 
-                 // Filtre sur rating et reviews
-const goodRestaurants = (data.results || []).filter(place =>
-    place.rating >= 4 && place.user_ratings_total >= 200
-);
+                    // Filtre sur rating et reviews
+                    const goodRestaurants = (data.results || []).filter(place =>
+                        place.rating >= 4 && place.user_ratings_total >= 200
+                    );
 
-// Définir les catégories indésirables en dehors du filtre
-const unwantedCategories = ["movie_theater", "casino", "lodging"];
+                    // Définir les catégories indésirables en dehors du filtre
+                    const unwantedCategories = ["movie_theater", "casino", "lodging"];
 
-// Filtrer les restaurants pour retirer ceux avec des catégories indésirables
-const filteredRestaurants = goodRestaurants.filter(place => {
-    const placeCategories = place.types || [];
-    return !unwantedCategories.some(cat => placeCategories.includes(cat));
-});
+                    // Filtrer les restaurants pour retirer ceux avec des catégories indésirables
+                    const filteredRestaurants = goodRestaurants.filter(place => {
+                        const placeCategories = place.types || [];
+                        return !unwantedCategories.some(cat => placeCategories.includes(cat));
+                    });
 
-// Maintenant, utilisez filteredRestaurants pour l’enregistrement en base :
-for (const place of filteredRestaurants) {
-    const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=formatted_phone_number,opening_hours&key=${GOOGLE_API_KEY}`;
-    const detailsResponse = await fetch(detailsUrl);
-    const detailsData = await detailsResponse.json();
+                    // filteredRestaurants pour l’enregistrement en base :
+                    for (const place of filteredRestaurants) {
+                        const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=formatted_phone_number,opening_hours&key=${GOOGLE_API_KEY}`;
+                        const detailsResponse = await fetch(detailsUrl);
+                        const detailsData = await detailsResponse.json();
 
-    await Place.findOneAndUpdate(
-        { place_id: place.place_id },
-        {
-            name: place.name,
-            phone: detailsData.result?.formatted_phone_number || 'Not available',
-            location: {
-                type: "Point",
-                coordinates: [place.geometry.location.lng, place.geometry.location.lat]
-            },
-            address: {
-                street: place.vicinity,
-                city: "Lille"
-            },
-            photo_reference: place.photos?.[0]?.photo_reference || null,
-            place_id: place.place_id,
-            rating: place.rating,
-            review_count: place.user_ratings_total,
-            categories: place.types,
-            openingHours: detailsData.result?.opening_hours?.weekday_text || [],
-        },
-        { upsert: true, new: true }
-    );
-}
+                        await Place.findOneAndUpdate(
+                            { place_id: place.place_id },
+                            {
+                                name: place.name,
+                                phone: detailsData.result?.formatted_phone_number?.replace(/^0/, '+33 ') || 'Non disponible',
+                                location: {
+                                    type: "Point",
+                                    coordinates: [place.geometry.location.lng, place.geometry.location.lat]
+                                },
+                                address: {
+                                    street: place.vicinity,
+                                    city: "Lille"
+                                },
+                                photo_reference: place.photos?.[0]?.photo_reference || null,
+                                place_id: place.place_id,
+                                rating: place.rating,
+                                review_count: place.user_ratings_total,
+                                categories: place.types,
+                                openingHours: detailsData.result?.opening_hours?.weekday_text || [],
+                            },
+                            { upsert: true, new: true }
+                        );
+                    }
 
 
                     allRestaurants = [...allRestaurants, ...filteredRestaurants];
@@ -155,8 +166,10 @@ router.post('/enrichWithYelp', async (req, res) => {
                 place.name,
                 place.address?.street || '',
                 place.address?.city || 'Lille',
-                "59000"
+                "59000",
+                place.phone
             );
+
             const type = categories.length > 0 ? categories.join(', ') : null;
 
             if (type) {
@@ -164,11 +177,13 @@ router.post('/enrichWithYelp', async (req, res) => {
                     { place_id: place.place_id },
                     { type },
                     { new: true }
+
                 );
                 enrichedCount++;
             } else {
                 nullCount++;
             }
+
         }
 
         res.json({
@@ -204,7 +219,7 @@ router.get('/findNearbyRestaurants', async (req, res) => {
                 ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photo_reference}&key=${GOOGLE_API_KEY}`
                 : 'placeholder_url',
             phoneNumber: place.phone,
-            location : place.location,
+            location: place.location,
             openingHours: place.openingHours,
             categories: place.categories,
             type: place.type
@@ -213,6 +228,66 @@ router.get('/findNearbyRestaurants', async (req, res) => {
         res.json(formattedPlaces);
     } catch (error) {
         console.error('Error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+
+// Nouvelle route spécifique pour le filtrage par catégorie
+router.get('/findRestaurantsByCategory', async (req, res) => {
+    try {
+        const { category } = req.query;
+        
+        if (!category) {
+            return res.status(400).json({ message: "Category needed" });
+        }
+
+        // Définition des mots-clés pour chaque catégorie
+        const categoryMapping = {
+            'Asiatique': ['asian', 'japanese', 'chinese', 'thai', 'vietnamese', 'sushi', 'pan asian'],
+            'Italien': ['italian', 'pizza', 'pasta'],
+            'Fast food': ['fast food', 'burger', 'sandwich', 'quick', 'Kebab'],
+            'Gastronomique': ['gastronomic','Gastronomique', 'french', 'fine dining', 'gourmet', "French"]
+        };
+
+        const keywords = categoryMapping[category];
+        if (!keywords) {
+            return res.status(400).json({ message: "Invalid category" });
+        }
+
+        // Création de la requête avec le filtre sur le type
+        const places = await Place.find({
+            type: { $regex: keywords.join('|')}
+        })
+        .sort({ rating: -1, review_count: -1 })
+        .limit(5);
+
+        if (!places || places.length === 0) {
+            return res.status(404).json({ 
+                message: `Pas de best dans cette Categorie !: ${category}` 
+            });
+        }
+
+        // Formatage des résultats comme dans la route originale
+        const formattedPlaces = places.map(place => ({
+            id: place.place_id,
+            name: place.name,
+            address: place.address?.street,
+            rating: place.rating,
+            photo: place.photo_reference
+                ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photo_reference}&key=${process.env.API_KEY}`
+                : 'placeholder_url',
+            phoneNumber: place.phone,
+            location: place.location,
+            openingHours: place.openingHours,
+            categories: place.categories,
+            type: place.type
+        }));
+
+        res.json(formattedPlaces);
+
+    } catch (error) {
+        console.error('Error in findRestaurantsByCategory:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
