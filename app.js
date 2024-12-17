@@ -10,6 +10,7 @@ var logger = require("morgan");
 var usersRouter = require("./routes/users");
 const placeRouter = require("./routes/place");
 const googleAPIRouter = require("./routes/API_GOOGLE");
+const reviewsRouter = require("./routes/reviews")
 
 const cors = require("cors");
 app.use(cors());
@@ -22,5 +23,6 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use("/", googleAPIRouter);
 app.use("/users", usersRouter);
 app.use("/places", placeRouter);
+app.use("/reviews", reviewsRouter);
 
 module.exports = app;
