@@ -2,10 +2,6 @@ const mongoose = require('mongoose');
 
 const placeSchema = mongoose.Schema({
 
-
-
-
-
     instagramUrl: String,
      name: String,
     phone: String,
@@ -25,6 +21,13 @@ const placeSchema = mongoose.Schema({
     photo_reference: String,
     place_id: String,
     rating: Number,
+    reviews: [{
+        author_name: String,
+        rating: Number,
+        text: String,
+        time: Date,
+        profile_photo_url: String
+      }],
     review_count: Number,
     categories: [String],
     type : String,
