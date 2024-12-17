@@ -303,7 +303,7 @@ router.get('/findRestaurantsByCategory', async (req, res) => {
         }
 
         const formattedPlaces = places.map(place => ({
-            id: place.place_id,
+            place_id: place.place_id,
             name: place.name,
             address: place.address?.street,
             rating: place.rating,

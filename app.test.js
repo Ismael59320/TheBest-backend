@@ -26,7 +26,7 @@ it("PUT /users/favorites ajout d'un favoris", async () => {
     obj_id: obj_id,
     
   });
-  expect(res.body).toEqual({message: "Favori ajouté avec succès", result: true} ||{message: "Favori supprimé", result: false});
+  expect(res.body).toEqual({message: "Favori ajouté avec succès", result: true});
   
   // User.update();
 });
