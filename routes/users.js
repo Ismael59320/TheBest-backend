@@ -78,27 +78,30 @@ router.put("/favorites", (req, res) => {
       });
     } else {
       // Vérification si le favori n'est pas dejà ajouté
-      User.find({token: token, favorites: obj_id}).then(infos => {
-        console.log(infos)
-        if (infos.length === 0){
-          User.updateOne(
-            {token},
-            { $push: {favorites: obj_id}}
-          ).then((object) => {
-            console.log(object)
-            res.json({ result: true, message: 'Favori ajouté avec succès'})
-          })
-        } else {
-          // Si favori deja dans la BDD, le supprimer
-          User.updateOne(
-            {token},
-            {$pull : {favorites: obj_id}}
-          ).then((object) => {
-            console.log(object)
-            res.json({result: false, message: 'Favori supprimé'})
-          })
-        }
-      }).catch(e => res.json({error: String(e)}))
+      User.find({ token: token, favorites: obj_id })
+        .then((infos) => {
+          console.log(infos);
+          if (infos.length === 0) {
+            User.updateOne({ token }, { $push: { favorites: obj_id } }).then(
+              (object) => {
+                console.log(object);
+                res.json({
+                  result: true,
+                  message: "Favori ajouté avec succès",
+                });
+              }
+            );
+          } else {
+            // Si favori deja dans la BDD, le supprimer
+            User.updateOne({ token }, { $pull: { favorites: obj_id } }).then(
+              (object) => {
+                console.log(object);
+                res.json({ result: false, message: "Favori supprimé" });
+              }
+            );
+          }
+        })
+        .catch((e) => res.json({ error: String(e) }));
     }
   });
 });
@@ -118,61 +121,112 @@ router.put("/favorites", (req, res) => {
   res.json({ result: true, message: "Favori ajouté avec succès" });
 });
 
-//route pour supprimer le compte
-// router.delete("/delete", (req, res) => {
-//   console.log("Requête reçue :", req.body);
-//   const { Token } = req.body;
-//   if (!Token) {
-//     return res.status(400).json({ result: false, error: "Token manquant" });
-//   }
-
-//   User.deleteOne({ Token: Token })
-//     .then(deleteDoc => {
-//       // Vérifier si l'utilisateur a bien été supprimé
-//       if (deleteDoc.deletedCount > 0) {
-//         // L'utilisateur a été supprimé, retourner une réponse
-//         res.json({ result: true, message: "Utilisateur supprimé avec succès" });
-//       } else {
-//         res.status(404).json({ result: false, error: "Utilisateur non trouvé" });
-//       }
-//     })
-// });
-
 router.get("/all", (req, res) => {
-  User.find()  // Trouver tous les utilisateurs dans la base de données
-    .then(users => {
+  User.find() // Trouver tous les utilisateurs dans la base de données
+    .then((users) => {
       res.json({
         result: true,
-        users: users,  // Renvoie la liste des utilisateurs
+        users: users, // Renvoie la liste des utilisateurs
       });
     })
-    .catch(err => {
+    .catch((err) => {
       console.error(err);
       res.status(500).json({ result: false, error: "Erreur serveur" });
     });
 });
 
+//supprime avec demande de confirmation
 router.delete("/delete", (req, res) => {
-  const token = req.body.token || null;  // Assurez-vous que le token est pris de façon plus explicite
-  console.log("Token reçu : ", token);  // Affichez le token pour vérifier si c'est bien récupéré
+  const token = req.body.token || null; // Assurez-vous que le token est pris de façon plus explicite
+  console.log("Token reçu : ", token); // Affichez le token pour vérifier si c'est bien récupéré
 
   if (!token) {
     return res.status(400).json({ result: false, error: "Token manquant" });
   }
 
-  User.deleteOne({ token: token })  // Supprimer l'utilisateur par son token
-    .then(deleteDoc => {
+  User.deleteOne({ token: token })
+    .then((deleteDoc) => {
       if (deleteDoc.deletedCount > 0) {
         res.json({ result: true, message: "Utilisateur supprimé avec succès" });
       } else {
-        res.status(404).json({ result: false, error: "Utilisateur non trouvé" });
+        res
+          .status(404)
+          .json({ result: false, error: "Utilisateur non trouvé" });
       }
     })
-    .catch(err => {
+    .catch((err) => {
       console.error(err);
       res.status(500).json({ result: false, error: "Erreur serveur" });
     });
 });
 
+
+//modifier user 
+router.put("/modifier", function (req, res) {
+  const { username, email, password } = req.body;
+  User.findOne({ email: email })
+    .then(function (user) {
+      if (!user) {
+        return res.json({ result: false, error: "Utilisateur non trouvé." });
+      }
+      if (username) {
+        user.username = username;
+      }
+      if (email) {
+        user.email = email;
+      }
+      if (password) {
+       
+       
+        // Hashage sécurisé du mot de passe et le sauvegarde
+        bcrypt.hash(password, 10, function (err, hashedPassword) {
+          if (err) {
+            return res.json({
+              result: false,
+              error: "Erreur lors du hashage du mot de passe.",
+            });
+          }
+          user.password = hashedPassword;
+          user
+            .save()
+            .then(function (modifier) {
+              return res.json({
+                result: true,
+                message: "Utilisateur modifié avec succès.",
+                User: modifier,
+              });
+            })
+            .catch(function (saveErr) {
+              return res.json({
+                result: false,
+                error: "Erreur lors de la mise à jour de l'utilisateur.",
+              });
+            });
+        });
+      } else {
+        user
+          .save()
+          .then(function (modifier) {
+            res.json({
+              result: true,
+              message: "Utilisateur modifié avec succès.",
+              User: modifier,
+            });
+          })
+          .catch(function (saveErr) {
+            res.json({
+              result: false,
+              error: "Erreur lors de la mise à jour de l'utilisateur.",
+            });
+          });
+      }
+    })
+    .catch(function (findErr) {
+      res.json({
+        result: false,
+        error: "Erreur lors de la recherche de l'utilisateur.",
+      });
+    });
+});
 
 module.exports = router;
