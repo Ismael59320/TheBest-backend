@@ -78,30 +78,27 @@ router.put("/favorites", (req, res) => {
       });
     } else {
       // Vérification si le favori n'est pas dejà ajouté
-      User.find({ token: token, favorites: obj_id })
-        .then((infos) => {
-          console.log(infos);
-          if (infos.length === 0) {
-            User.updateOne({ token }, { $push: { favorites: obj_id } }).then(
-              (object) => {
-                console.log(object);
-                res.json({
-                  result: true,
-                  message: "Favori ajouté avec succès",
-                });
-              }
-            );
-          } else {
-            // Si favori deja dans la BDD, le supprimer
-            User.updateOne({ token }, { $pull: { favorites: obj_id } }).then(
-              (object) => {
-                console.log(object);
-                res.json({ result: false, message: "Favori supprimé" });
-              }
-            );
-          }
-        })
-        .catch((e) => res.json({ error: String(e) }));
+      User.find({token: token, favorites: obj_id}).then(infos => {
+        console.log(infos)
+        if (infos.length === 0){
+          User.updateOne(
+            {token},
+            { $push: {favorites: obj_id}}
+          ).then((object) => {
+            console.log(object)
+            res.json({ result: true, message: 'Favori ajouté avec succès'})
+          })
+        } else {
+          // Si favori deja dans la BDD, le supprimer
+          User.updateOne(
+            {token},
+            {$pull : {favorites: obj_id}}
+          ).then((object) => {
+            console.log(object)
+            res.json({result: false, message: 'Favori supprimé'})
+          })
+        }
+      }).catch(e => res.json({error: String(e)}))
     }
   });
 });
