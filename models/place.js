@@ -15,10 +15,13 @@ const placeSchema = mongoose.Schema({
             required: true
         }
     },
-    address: Object,
-
+    address: {
+        street : String,
+        city : String,
+    },
 
     photo_reference: String,
+    all_photos : [String],
     place_id: String,
     rating: Number,
     reviews: [{

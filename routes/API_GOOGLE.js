@@ -1,15 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const Place = require('../models/place');
-const fetch = require('node-fetch');
+
 
 const GOOGLE_API_KEY = process.env.API_KEY;
-const YELP_API_KEY = process.env.YELP_API_KEY;
-const YELP_HEADERS = {
-    "Authorization": `Bearer ${YELP_API_KEY}`
-};
+// const YELP_API_KEY = process.env.YELP_API_KEY;
+// const YELP_HEADERS = {
+//     "Authorization": `Bearer ${YELP_API_KEY}`
+// };
 
-// NOUVEAU: Fonction pour récupérer les 20 derniers avis en français
+// Fonction pour récupérer les 20 derniers avis en français
 async function getAllReviews(placeId) {
     let allReviews = [];
     let nextPageToken = '';
@@ -156,7 +156,7 @@ router.post('/updatePlaces', async (req, res) => {
                                 review_count: place.user_ratings_total,
                                 categories: place.types,
                                 openingHours: detailsData.result?.opening_hours?.weekday_text || [],
-                                // NOUVEAU: Sauvegarde des 20 avis formatés
+                           
                                 reviews: formattedReviews
                             },
                             { upsert: true, new: true }
@@ -273,10 +273,10 @@ router.get('/findNearbyRestaurants', async (req, res) => {
 
 router.get('/findRestaurantsByCategory', async (req, res) => {
     try {
-        const { category } = req.query;
+        const { category,city } = req.query;
         
-        if (!category) {
-            return res.status(400).json({ message: "Category needed" });
+        if (!category || !city) {
+            return res.status(400).json({ message: "Category and city required" });
         }
 
         const categoryMapping = {
@@ -292,10 +292,12 @@ router.get('/findRestaurantsByCategory', async (req, res) => {
         }
 
         const places = await Place.find({
-            type: { $regex: keywords.join('|')}
-        })
+            type: { $regex: keywords.join('|')},
+                'address.city' : city
+            })
+       
         .sort({ rating: -1, review_count: -1 })
-        .limit(5);
+        .limit(5);  
 
         if (!places || places.length === 0) {
             return res.status(404).json({ 
@@ -307,6 +309,7 @@ router.get('/findRestaurantsByCategory', async (req, res) => {
             place_id: place.place_id,
             name: place.name,
             address: place.address?.street,
+            city: place.address?.city,
             rating: place.rating,
             photo: place.photo_reference
                 ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photo_reference}&key=${process.env.API_KEY}`
