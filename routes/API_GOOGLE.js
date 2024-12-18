@@ -241,6 +241,7 @@ router.get('/findNearbyRestaurants', async (req, res) => {
             place_id: place.place_id,
             name: place.name,
             address: place.address?.street,
+            city: place.address?.city,
             rating: place.rating,
             photo: place.photo_reference
                 ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photo_reference}&key=${GOOGLE_API_KEY}`
