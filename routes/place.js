@@ -25,6 +25,7 @@ router.get("/", (req, res) => {
       name: place.name,
       address: place.address?.street,
       rating: place.rating,
+      reviews: place.reviews,
       photo: place.photo_reference ?
           `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photo_reference}&key=${GOOGLE_API_KEY}` :
           'placeholder_url',
