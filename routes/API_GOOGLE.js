@@ -13,24 +13,24 @@ const GOOGLE_API_KEY = process.env.API_KEY;
 async function getAllReviews(placeId) {
     let allReviews = [];
     let nextPageToken = '';
-    
+
     for (let i = 0; i < 4 && (i === 0 || nextPageToken); i++) {
         const pageUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=reviews&reviews_sort=newest&language=fr${nextPageToken ? `&pagetoken=${nextPageToken}` : ''}&key=${GOOGLE_API_KEY}`;
-        
+
         const response = await fetch(pageUrl);
         const data = await response.json();
-        
+
         if (data.result?.reviews) {
             allReviews = [...allReviews, ...data.result.reviews];
         }
-        
+
         nextPageToken = data.next_page_token;
         if (nextPageToken) {
             // Délai requis par Google entre les requêtes
             await new Promise(resolve => setTimeout(resolve, 2000));
         }
     }
-    
+
     return allReviews.slice(0, 20);  // On s'assure d'avoir max 20 avis
 }
 
@@ -156,7 +156,7 @@ router.post('/updatePlaces', async (req, res) => {
                                 review_count: place.user_ratings_total,
                                 categories: place.types,
                                 openingHours: detailsData.result?.opening_hours?.weekday_text || [],
-                           
+
                                 reviews: formattedReviews
                             },
                             { upsert: true, new: true }
@@ -274,7 +274,7 @@ router.get('/findNearbyRestaurants', async (req, res) => {
 router.get('/findRestaurantsByCategory', async (req, res) => {
     try {
         const { category, city } = req.query;
-        
+
         if (!category && !city) {
             return res.status(400).json({ message: "At least one of category or city is required" });
         }
@@ -283,7 +283,7 @@ router.get('/findRestaurantsByCategory', async (req, res) => {
             'Asiatique': ['Asian', "Asiatique", 'Japanese', 'chinese', 'thai', 'Vietnamese', 'sushi', 'pan asian'],
             'Italien': ['Italian', 'Pizza', 'pasta'],
             'Fast food': ['fast food', 'Burgers', 'Sandwich', 'quick', 'Kebab'],
-            'Gastronomique': ['gastronomic','Gastronomique', 'French', 'fine dining', 'gourmet', "French"]
+            'Gastronomique': ['gastronomic', 'Gastronomique', 'French', 'fine dining', 'gourmet', "French"]
         };
 
         let query = {};
@@ -302,11 +302,11 @@ router.get('/findRestaurantsByCategory', async (req, res) => {
 
         const places = await Place.find(query)
             .sort({ rating: -1, review_count: -1 })
-            .limit(5);  
+            .limit(5);
 
         if (!places || places.length === 0) {
-            return res.status(404).json({ 
-                message: `No restaurants found for the given criteria` 
+            return res.status(404).json({
+                message: `No restaurants found for the given criteria`
             });
         }
 
@@ -341,6 +341,63 @@ router.get('/findRestaurantsByCategory', async (req, res) => {
         console.error('Error in findRestaurantsByCategory:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
+
 });
+
+
+
+router.post('/fetchPhotosForRestaurant', async (req, res) => {
+    try {
+        const places = await Place.find();
+        const updatedPlaces = [];
+
+        for (const place of places) {
+            const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,photos&key=${GOOGLE_API_KEY}`;
+            const detailsResponse = await fetch(detailsUrl);
+            const detailsData = await detailsResponse.json();
+
+            if (detailsData.status === 'OK') {
+                const photos = detailsData.result.photos || [];
+                const videos = detailsData.result.video || [];
+                const filteredPhotos = photos.filter(photo =>
+                    photo.html_attributions &&
+                    photo.html_attributions.some(attribution => attribution.includes(detailsData.result.name))
+                );
+
+                const allPhotos = filteredPhotos.map(photo =>
+                    `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photo.photo_reference}&key=${GOOGLE_API_KEY}`
+                );
+
+                await Place.findOneAndUpdate(
+                    { place_id: place.place_id },
+                    { $set: { all_photos: allPhotos } },
+                    { new: true }
+                );
+                updatedPlaces.push(place.place_id);
+            }
+
+            // Délai pour respecter les limites de l'API
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        res.json({
+            success: true,
+            message: `Updated photos for ${updatedPlaces.length} restaurants`,
+            updatedPlaces
+        });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+
+
+
+
+
+
+
+
 
 module.exports = router;
