@@ -3,6 +3,8 @@ var router = express.Router();
 const User = require('../models/user')
 const Review = require('../models/review')
 
+
+// Poster un avis sur un resto
 router.post('/', (req, res) => {
     User.findOne({ token : req.body.token})
     .then((data) => {
@@ -25,38 +27,13 @@ router.post('/', (req, res) => {
     });
 });
 
-// router.get("/:place_id", (req,res) => {
-//     const place_id = req.params.place_id
-//     const review = Review.find(req.params.place_id)
 
-//     if (review) {
-//         res.json({result : true, review})
-//     } else {
-//         res.json({result: false})
-//     }
-//     // Review.find({place_id: req.body.place_id}).then((data) => {
-
-        
-
-//     //     const formattedReviews = data.map(review => ({
-//     //         user: review.user,
-//     //         place_id: review.place_id,
-//     //         rating: review.rating,
-//     //         username: review.username,
-//     //         text: review.text,
-//     //         photo: review.photo,
-//     //         created: review.created
-//     //     }))
-
-//     //     res.json({result: true, formattedReviews})
-//     // })
-// })
-
+// Retrouver les avis par resto grace à sa place_id afin de les afficher sur la fiche resto
 router.get("/:place_id", async (req, res) => {
     try {
-        const place_id = req.params.place_id;
+        const place_id = req.params.place_id; 
 
-        // Recherche des reviews correspondant au place_id
+        // Recherche des avis correspondant a la place_id
         const reviews = await Review.find({ place_id: place_id });
 
         if (reviews && reviews.length > 0) {
@@ -67,6 +44,90 @@ router.get("/:place_id", async (req, res) => {
     } catch (error) {
         res.status(500).json({ result: false, error: "Erreur de recupération des avis" });
     }
+});
+
+router.put("/:token", async (req, res) => {
+    const token = req.params.token;
+
+    const reviews = await Review.find({ token: token});
+
+    if (reviews && reviews.length > 0) {
+        res.json({ result : true, reviews})
+    } else {
+        res.json ({ result : false, message: "Ce Bester n'a pas encore laissé d'avis"})
+    }
+})
+
+// router.delete(":/token", async (req, res) => {
+//     const token = req.params.token;
+
+//     User.find({token: token,}).then((user) => {
+//         console.log(user)
+//         res.json(user)
+//     })
+
+//     // User.findOne({ token : token}).then((user) => {
+//     //     console.log(user)
+//     //     res.json(user)
+//     // })
+
+//     const reviews = await Review.find({ token : token});
+
+//     // if (reviews && reviews.length > 0) {
+//     //     res.json({result: true, reviews})
+//     // } else {
+//     //     res.json({result: false})
+//     // }
+// })
+
+router.delete("/", (req, res) => {
+ 
+    const {token, _id} = req.body;
+
+
+    User.findOne({token : token})
+    .then((user) => {
+        Review.deleteOne({ _id: _id, user: user._id})
+        .then((data) => {
+            if(data){
+                res.json({result: true, message: "Suppression réussie"})
+            } else {
+                res.json({result: false, error: "Echec de la suppression"})
+            }
+        })
+
+    
+    //    Review.deleteById({_id: _id})
+    //     .then((reviews) => {
+    //         console.log(_id)
+    //         res.json(reviews)
+    
+    })
+
+    // if (!token || !_id){
+    //     return res.json({result: false, error: 'Token et Id requis'})
+    // }
+
+    // try {
+    //     const user =  User.findOne({ token: token });
+
+    //     if (!user){
+    //         return res.json({ result: false, error: "Utilisateur non trouvé"})
+    //     }
+
+
+    //     const deleteReview = Review.deleteOne({ _id: _id, user: user._id})
+
+    //     if (deleteReview.deletedCount > 0){
+    //         res.json({ result: true, message: "Avis supprimé"})
+    //     } else {
+    //         res.json({ return: false, error: "Echec de la suppression"})
+    //     }
+    // } catch (error) {
+    //     console.error('Erreur de Suppression')
+    //     res.json({ result: false, error: "Echec de la suppression. Veuillez réessayer"})
+    // }
+
 });
 
 module.exports = router;
