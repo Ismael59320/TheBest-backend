@@ -273,10 +273,10 @@ router.get('/findNearbyRestaurants', async (req, res) => {
 
 router.get('/findRestaurantsByCategory', async (req, res) => {
     try {
-        const { category,city } = req.query;
+        const { category, city } = req.query;
         
-        if (!category || !city) {
-            return res.status(400).json({ message: "Category and city required" });
+        if (!category && !city) {
+            return res.status(400).json({ message: "At least one of category or city is required" });
         }
 
         const categoryMapping = {
@@ -286,22 +286,27 @@ router.get('/findRestaurantsByCategory', async (req, res) => {
             'Gastronomique': ['gastronomic','Gastronomique', 'French', 'fine dining', 'gourmet', "French"]
         };
 
-        const keywords = categoryMapping[category];
-        if (!keywords) {
-            return res.status(400).json({ message: "Invalid category" });
+        let query = {};
+
+        if (category) {
+            const keywords = categoryMapping[category];
+            if (!keywords) {
+                return res.status(400).json({ message: "Invalid category" });
+            }
+            query.type = { $regex: keywords.join('|'), $options: 'i' };
         }
 
-        const places = await Place.find({
-            type: { $regex: keywords.join('|')},
-                'address.city' : city
-            })
-       
-        .sort({ rating: -1, review_count: -1 })
-        .limit(5);  
+        if (city) {
+            query['address.city'] = { $regex: new RegExp(city, 'i') };
+        }
+
+        const places = await Place.find(query)
+            .sort({ rating: -1, review_count: -1 })
+            .limit(5);  
 
         if (!places || places.length === 0) {
             return res.status(404).json({ 
-                message: `Pas de best dans cette Categorie !: ${category}` 
+                message: `No restaurants found for the given criteria` 
             });
         }
 
@@ -319,10 +324,9 @@ router.get('/findRestaurantsByCategory', async (req, res) => {
             openingHours: place.openingHours,
             categories: place.categories,
             type: place.type,
-            //Même logique que findNearbyRestaurants pour les avis
             reviews: (place.reviews || [])
-                .sort((a, b) => b.time - a.time)  // Tri par date la plus récente
-                .slice(0, 5)                      // Ne prend que les 5 premiers
+                .sort((a, b) => b.time - a.time)
+                .slice(0, 5)
                 .map(review => ({
                     author: review.author_name,
                     rating: review.rating,
