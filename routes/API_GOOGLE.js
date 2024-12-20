@@ -346,6 +346,7 @@ router.get('/findRestaurantsByCategory', async (req, res) => {
         }
 
         // Formatage des données des restaurants
+        
         const formattedPlaces = places.map(place => ({
             place_id: place.place_id,
             name: place.name,

@@ -210,7 +210,7 @@ router.put("/modifier", function (req, res) {
             res.json({
               result: true,
               message: "Utilisateur modifié avec succès.",
-              User: modifier,
+              username: modifier,
             });
           })
           .catch(function (saveErr) {
