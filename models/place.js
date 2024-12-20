@@ -22,6 +22,10 @@ const placeSchema = mongoose.Schema({
 
     photo_reference: String,
     all_photos : [String],
+    videos: [{
+        url: String,
+        thumbnail: String
+    }],
     place_id: String,
     rating: Number,
     reviews: [{
